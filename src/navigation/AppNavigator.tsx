@@ -2,6 +2,8 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { useHousehold } from '../presentation/context/HouseholdContext';
+import CreateHouseholdScreen from '../presentation/screens/household/CreateHouseholdScreen';
 import { useAuth } from '../presentation/context/AuthContext';
 
 import LoginScreen from '../presentation/screens/auth/LoginScreen';
@@ -16,6 +18,7 @@ import PlanningScreen from '../presentation/screens/PlanningScreen';
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
+  CreateHousehold: undefined;
   Home: undefined;
   Pantry: undefined;
   Finances: undefined;
@@ -26,9 +29,17 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
-  const { user, loading } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+  } = useAuth();
 
-  if (loading) {
+  const {
+    household,
+    loading: householdLoading,
+  } = useHousehold();
+
+  if (authLoading || householdLoading) {
     return (
       <View
         style={{
@@ -44,50 +55,73 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator>
-      {user ? (
-        <>
-          <Stack.Screen
-            name="Home"
-            component={HomeScreen}
-            options={{ title: 'HomeLive' }}
-          />
-
-          <Stack.Screen
-            name="Pantry"
-            component={PantryScreen}
-            options={{ title: 'Despensa' }}
-          />
-
-          <Stack.Screen
-            name="Finances"
-            component={FinancesScreen}
-            options={{ title: 'Finanzas' }}
-          />
-
-          <Stack.Screen
-            name="Shopping"
-            component={ShoppingScreen}
-            options={{ title: 'Compras' }}
-          />
-
-          <Stack.Screen
-            name="Planning"
-            component={PlanningScreen}
-            options={{ title: 'Planificación' }}
-          />
-        </>
-      ) : (
+      {!user ? (
         <>
           <Stack.Screen
             name="Login"
             component={LoginScreen}
-            options={{ title: 'Iniciar sesión' }}
+            options={{
+              title: 'Iniciar sesión',
+            }}
           />
 
           <Stack.Screen
             name="Register"
             component={RegisterScreen}
-            options={{ title: 'Registro' }}
+            options={{
+              title: 'Registro',
+            }}
+          />
+        </>
+      ) : !household ? (
+        <Stack.Screen
+          name="CreateHousehold"
+          component={CreateHouseholdScreen}
+          options={{
+            title: 'Configurar hogar',
+            headerBackVisible: false,
+          }}
+        />
+      ) : (
+        <>
+          <Stack.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              title: 'HomeLive',
+            }}
+          />
+
+          <Stack.Screen
+            name="Pantry"
+            component={PantryScreen}
+            options={{
+              title: 'Despensa',
+            }}
+          />
+
+          <Stack.Screen
+            name="Finances"
+            component={FinancesScreen}
+            options={{
+              title: 'Finanzas',
+            }}
+          />
+
+          <Stack.Screen
+            name="Shopping"
+            component={ShoppingScreen}
+            options={{
+              title: 'Compras',
+            }}
+          />
+
+          <Stack.Screen
+            name="Planning"
+            component={PlanningScreen}
+            options={{
+              title: 'Planificación',
+            }}
           />
         </>
       )}
