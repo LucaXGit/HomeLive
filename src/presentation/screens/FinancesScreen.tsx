@@ -177,6 +177,17 @@ export default function FinancesScreen({
             </Text>
           </Pressable>
 
+          <Pressable
+            style={styles.addButton}
+            onPress={() =>
+              navigation.navigate('SavingsGoals')
+            }
+          >
+            <Text style={styles.addButtonText}>
+              Metas de ahorro
+            </Text>
+          </Pressable>
+
           <View style={styles.filters}>
             <Text style={styles.filterTitle}>Filtros</Text>
 

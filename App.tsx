@@ -8,6 +8,8 @@ import { HouseholdProvider } from './src/presentation/context/HouseholdContext';
 import { PantryProvider } from './src/presentation/context/PantryContext';
 import { ShoppingListProvider } from './src/presentation/context/ShoppingListContext';
 import { FinanceProvider } from './src/presentation/context/FinanceContext';
+import { SavingsGoalProvider } from './src/presentation/context/SavingsGoalContext';
+import { PlanningProvider } from './src/presentation/context/PlanningContext';
 
 export default function App() {
   return (
@@ -16,9 +18,13 @@ export default function App() {
         <PantryProvider>
           <ShoppingListProvider>
             <FinanceProvider>
-              <NavigationContainer>
-                <AppNavigator />
-              </NavigationContainer>
+              <SavingsGoalProvider>
+                <PlanningProvider>
+                  <NavigationContainer>
+                    <AppNavigator />
+                  </NavigationContainer>
+                </PlanningProvider>
+              </SavingsGoalProvider>
             </FinanceProvider>
           </ShoppingListProvider>
         </PantryProvider>

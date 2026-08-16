@@ -16,10 +16,15 @@ import EditProductScreen from '../presentation/screens/pantry/EditProductScreen'
 import FinancesScreen from '../presentation/screens/FinancesScreen';
 import CreateTransactionScreen from '../presentation/screens/finances/CreateTransactionScreen';
 import EditTransactionScreen from '../presentation/screens/finances/EditTransactionScreen';
+import SavingsGoalsScreen from '../presentation/screens/savings/SavingsGoalsScreen';
+import CreateSavingsGoalScreen from '../presentation/screens/savings/CreateSavingsGoalScreen';
+import EditSavingsGoalScreen from '../presentation/screens/savings/EditSavingsGoalScreen';
 import ShoppingScreen from '../presentation/screens/ShoppingScreen';
 import CreateShoppingListScreen from '../presentation/screens/shopping/CreateShoppingListScreen';
 import ShoppingListDetailScreen from '../presentation/screens/shopping/ShoppingListDetailScreen';
 import PlanningScreen from '../presentation/screens/PlanningScreen';
+import CreatePlanningItemScreen from '../presentation/screens/planning/CreatePlanningItemScreen';
+import EditPlanningItemScreen from '../presentation/screens/planning/EditPlanningItemScreen';
 
 export type RootStackParamList = {
   Login: undefined;
@@ -36,12 +41,21 @@ export type RootStackParamList = {
   EditTransaction: {
     transactionId: string;
   };
+  SavingsGoals: undefined;
+  CreateSavingsGoal: undefined;
+  EditSavingsGoal: {
+    goalId: string;
+  };
   Shopping: undefined;
   CreateShoppingList: undefined;
   ShoppingListDetail: {
     listId: string;
   };
   Planning: undefined;
+  CreatePlanningItem: undefined;
+  EditPlanningItem: {
+    planningItemId: string;
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -159,6 +173,30 @@ export default function AppNavigator() {
           />
 
           <Stack.Screen
+            name="SavingsGoals"
+            component={SavingsGoalsScreen}
+            options={{
+              title: 'Metas de ahorro',
+            }}
+          />
+
+          <Stack.Screen
+            name="CreateSavingsGoal"
+            component={CreateSavingsGoalScreen}
+            options={{
+              title: 'Nueva meta',
+            }}
+          />
+
+          <Stack.Screen
+            name="EditSavingsGoal"
+            component={EditSavingsGoalScreen}
+            options={{
+              title: 'Editar meta',
+            }}
+          />
+
+          <Stack.Screen
             name="Shopping"
             component={ShoppingScreen}
             options={{
@@ -187,6 +225,22 @@ export default function AppNavigator() {
             component={PlanningScreen}
             options={{
               title: 'Planificación',
+            }}
+          />
+
+          <Stack.Screen
+            name="CreatePlanningItem"
+            component={CreatePlanningItemScreen}
+            options={{
+              title: 'Nueva planificación',
+            }}
+          />
+
+          <Stack.Screen
+            name="EditPlanningItem"
+            component={EditPlanningItemScreen}
+            options={{
+              title: 'Editar planificación',
             }}
           />
         </>
