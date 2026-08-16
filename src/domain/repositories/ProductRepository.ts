@@ -1,4 +1,4 @@
-import { Product, ProductLocation, ProductStatus } from '../entities';
+import { Product, ProductLocation } from '../entities';
 
 export interface CreateProductData {
   householdId: string;
@@ -9,7 +9,6 @@ export interface CreateProductData {
   purchaseDate?: string;
   expirationDate?: string;
   location: ProductLocation;
-  status: ProductStatus;
   registeredBy: string;
 }
 
@@ -21,7 +20,6 @@ export interface UpdateProductData {
   purchaseDate?: string;
   expirationDate?: string;
   location?: ProductLocation;
-  status?: ProductStatus;
 }
 
 export interface ProductRepository {

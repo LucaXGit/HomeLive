@@ -1,4 +1,5 @@
 import { Product } from '../../domain/entities';
+import { getProductStatus } from '../../domain/usecases/productStatus';
 
 import {
   CreateProductData,
@@ -37,7 +38,10 @@ export class LocalProductRepository
       purchaseDate: data.purchaseDate,
       expirationDate: data.expirationDate,
       location: data.location,
-      status: data.status,
+      status: getProductStatus(
+        data.quantity,
+        data.expirationDate
+      ),
       registeredBy: data.registeredBy,
       createdAt: now,
       updatedAt: now,
@@ -55,8 +59,32 @@ export class LocalProductRepository
     householdId: string
   ): Promise<Product[]> {
     const products = await getStoredProducts();
+    let hasChanges = false;
 
-    return products.filter(
+    const updatedProducts = products.map((product) => {
+      const currentStatus = getProductStatus(
+        product.quantity,
+        product.expirationDate
+      );
+
+      if (currentStatus === product.status) {
+        return product;
+      }
+
+      hasChanges = true;
+
+      return {
+        ...product,
+        status: currentStatus,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    if (hasChanges) {
+      await saveStoredProducts(updatedProducts);
+    }
+
+    return updatedProducts.filter(
       (product) =>
         product.householdId === householdId
     );
@@ -90,9 +118,18 @@ export class LocalProductRepository
       );
     }
 
-    const updatedProduct: Product = {
-      ...products[index],
+    const currentProduct = products[index];
+    const mergedProduct = {
+      ...currentProduct,
       ...data,
+    };
+
+    const updatedProduct: Product = {
+      ...mergedProduct,
+      status: getProductStatus(
+        mergedProduct.quantity,
+        mergedProduct.expirationDate
+      ),
       updatedAt: new Date().toISOString(),
     };
 

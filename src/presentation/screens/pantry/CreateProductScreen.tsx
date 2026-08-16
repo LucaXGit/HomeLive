@@ -13,6 +13,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { ProductLocation } from '../../../domain/entities';
+import { isValidExpirationDate } from '../../../domain/usecases/productStatus';
 import { usePantry } from '../../context/PantryContext';
 
 type Props = NativeStackScreenProps<
@@ -67,6 +68,17 @@ export default function CreateProductScreen({
       return;
     }
 
+    if (
+      expirationDate.trim() &&
+      !isValidExpirationDate(expirationDate.trim())
+    ) {
+      Alert.alert(
+        'Validación',
+        'La fecha de caducidad debe tener el formato YYYY-MM-DD.'
+      );
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -78,10 +90,6 @@ export default function CreateProductScreen({
         expirationDate:
           expirationDate.trim() || undefined,
         location,
-        status:
-          parsedQuantity === 0
-            ? 'out_of_stock'
-            : 'available',
       });
 
       navigation.goBack();
