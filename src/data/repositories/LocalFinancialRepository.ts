@@ -10,6 +10,10 @@ import {
   getDatabase,
 } from '../local/database';
 
+import {
+  enqueueSyncOperation,
+} from '../local/syncQueue';
+
 function generateId(): string {
   return `${Date.now()}-${Math.random()
     .toString(36)
@@ -74,37 +78,46 @@ export class LocalFinancialRepository
       updatedAt: now,
     };
 
-    await db.runAsync(
-      `
-        INSERT INTO financial_transactions (
-          id,
-          household_id,
-          user_id,
-          type,
-          amount,
-          category,
-          payment_method,
-          date,
-          description,
-          created_at,
-          updated_at,
-          sync_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      transaction.id,
-      transaction.householdId,
-      transaction.userId,
-      transaction.type,
-      transaction.amount,
-      transaction.category,
-      transaction.paymentMethod,
-      transaction.date,
-      transaction.description ?? null,
-      transaction.createdAt,
-      transaction.updatedAt,
-      'pending'
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          INSERT INTO financial_transactions (
+            id,
+            household_id,
+            user_id,
+            type,
+            amount,
+            category,
+            payment_method,
+            date,
+            description,
+            created_at,
+            updated_at,
+            sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        transaction.id,
+        transaction.householdId,
+        transaction.userId,
+        transaction.type,
+        transaction.amount,
+        transaction.category,
+        transaction.paymentMethod,
+        transaction.date,
+        transaction.description ?? null,
+        transaction.createdAt,
+        transaction.updatedAt,
+        'pending'
+      );
+
+      await enqueueSyncOperation(
+        'financial_transaction',
+        transaction.id,
+        'create',
+        transaction
+      );
+    });
 
     return transaction;
   }
@@ -180,29 +193,38 @@ export class LocalFinancialRepository
 
     const db = await getDatabase();
 
-    await db.runAsync(
-      `
-        UPDATE financial_transactions
-        SET
-          type = ?,
-          amount = ?,
-          category = ?,
-          payment_method = ?,
-          date = ?,
-          description = ?,
-          updated_at = ?,
-          sync_status = 'pending'
-        WHERE id = ?
-      `,
-      updatedTransaction.type,
-      updatedTransaction.amount,
-      updatedTransaction.category,
-      updatedTransaction.paymentMethod,
-      updatedTransaction.date,
-      updatedTransaction.description ?? null,
-      updatedTransaction.updatedAt,
-      updatedTransaction.id
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          UPDATE financial_transactions
+          SET
+            type = ?,
+            amount = ?,
+            category = ?,
+            payment_method = ?,
+            date = ?,
+            description = ?,
+            updated_at = ?,
+            sync_status = 'pending'
+          WHERE id = ?
+        `,
+        updatedTransaction.type,
+        updatedTransaction.amount,
+        updatedTransaction.category,
+        updatedTransaction.paymentMethod,
+        updatedTransaction.date,
+        updatedTransaction.description ?? null,
+        updatedTransaction.updatedAt,
+        updatedTransaction.id
+      );
+
+      await enqueueSyncOperation(
+        'financial_transaction',
+        updatedTransaction.id,
+        'update',
+        updatedTransaction
+      );
+    });
 
     return updatedTransaction;
   }
@@ -210,21 +232,43 @@ export class LocalFinancialRepository
   async delete(
     id: string
   ): Promise<void> {
-    const db = await getDatabase();
+    const transaction =
+      await this.findById(id);
 
-    const result =
-      await db.runAsync(
-        `
-          DELETE FROM financial_transactions
-          WHERE id = ?
-        `,
-        id
-      );
-
-    if (result.changes === 0) {
+    if (!transaction) {
       throw new Error(
         'Movimiento financiero no encontrado.'
       );
     }
+
+    const db = await getDatabase();
+
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            DELETE FROM financial_transactions
+            WHERE id = ?
+          `,
+          id
+        );
+
+      if (result.changes === 0) {
+        throw new Error(
+          'Movimiento financiero no encontrado.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'financial_transaction',
+        id,
+        'delete',
+        {
+          id,
+          householdId:
+            transaction.householdId,
+        }
+      );
+    });
   }
 }

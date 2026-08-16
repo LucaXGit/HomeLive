@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 
-const DATABASE_VERSION = 10;
+const DATABASE_VERSION = 14;
 
 export async function runMigrations():
   Promise<void> {
@@ -61,6 +61,22 @@ export async function runMigrations():
 
   if (currentVersion < 10) {
     await migrateToVersion10(db);
+  }
+
+  if (currentVersion < 11) {
+    await migrateToVersion11(db);
+  }
+
+  if (currentVersion < 12) {
+    await migrateToVersion12(db);
+  }
+
+  if (currentVersion < 13) {
+    await migrateToVersion13(db);
+  }
+
+  if (currentVersion < 14) {
+    await migrateToVersion14(db);
   }
 
   await db.execAsync(
@@ -700,5 +716,167 @@ async function migrateToVersion10(
       ON planning_items(household_id);
     CREATE INDEX IF NOT EXISTS idx_planning_date
       ON planning_items(date);
+  `);
+}
+
+async function migrateToVersion11(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS household_members;
+
+    CREATE TABLE household_members (
+      household_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (
+        household_id,
+        user_id
+      ),
+      FOREIGN KEY (
+        household_id
+      )
+      REFERENCES households(id)
+      ON DELETE CASCADE,
+      FOREIGN KEY (
+        user_id
+      )
+      REFERENCES users(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_household_members_user
+      ON household_members(user_id);
+    CREATE INDEX IF NOT EXISTS idx_household_members_household
+      ON household_members(household_id);
+  `);
+}
+
+async function migrateToVersion12(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY NOT NULL,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      household_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        )
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_users_email
+      ON users(email);
+  `);
+}
+
+async function migrateToVersion13(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id TEXT PRIMARY KEY NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      operation TEXT NOT NULL
+        CHECK (
+          operation IN (
+            'create',
+            'update',
+            'delete'
+          )
+        ),
+      payload TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          status IN (
+            'pending',
+            'processing',
+            'error'
+          )
+        ),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_status
+      ON sync_queue(status);
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_entity
+      ON sync_queue(
+        entity_type,
+        entity_id
+      );
+  `);
+}
+
+async function migrateToVersion14(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS sync_queue;
+
+    CREATE TABLE sync_queue (
+      id TEXT PRIMARY KEY NOT NULL,
+      entity_type TEXT NOT NULL
+        CHECK (
+          entity_type IN (
+            'user',
+            'household',
+            'product',
+            'shopping_list',
+            'shopping_item',
+            'financial_transaction',
+            'savings_goal',
+            'planning_item'
+          )
+        ),
+      entity_id TEXT NOT NULL,
+      operation TEXT NOT NULL
+        CHECK (
+          operation IN (
+            'create',
+            'update',
+            'delete'
+          )
+        ),
+      payload TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          status IN (
+            'pending',
+            'processing',
+            'error'
+          )
+        ),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_status
+      ON sync_queue(status);
+    CREATE INDEX IF NOT EXISTS idx_sync_queue_entity
+      ON sync_queue(
+        entity_type,
+        entity_id
+      );
   `);
 }

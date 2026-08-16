@@ -15,9 +15,9 @@ import {
 } from '../local/database';
 
 import {
-  getStoredProducts,
-  saveStoredProducts,
-} from '../local/productStorage';
+  debugSyncQueue,
+  enqueueSyncOperation,
+} from '../local/syncQueue';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random()
@@ -97,43 +97,53 @@ export class LocalProductRepository
       updatedAt: now,
     };
 
-    await db.runAsync(
-      `
-        INSERT INTO products (
-          id,
-          household_id,
-          name,
-          category,
-          quantity,
-          unit,
-          purchase_date,
-          expiration_date,
-          location,
-          status,
-          registered_by,
-          created_at,
-          updated_at,
-          sync_status
-        )
-        VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-      `,
-      product.id,
-      product.householdId,
-      product.name,
-      product.category,
-      product.quantity,
-      product.unit,
-      product.purchaseDate ?? null,
-      product.expirationDate ?? null,
-      product.location,
-      product.status,
-      product.registeredBy,
-      product.createdAt,
-      product.updatedAt,
-      'pending'
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          INSERT INTO products (
+            id,
+            household_id,
+            name,
+            category,
+            quantity,
+            unit,
+            purchase_date,
+            expiration_date,
+            location,
+            status,
+            registered_by,
+            created_at,
+            updated_at,
+            sync_status
+          )
+          VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `,
+        product.id,
+        product.householdId,
+        product.name,
+        product.category,
+        product.quantity,
+        product.unit,
+        product.purchaseDate ?? null,
+        product.expirationDate ?? null,
+        product.location,
+        product.status,
+        product.registeredBy,
+        product.createdAt,
+        product.updatedAt,
+        'pending'
+      );
+
+      await enqueueSyncOperation(
+        'product',
+        product.id,
+        'create',
+        product
+      );
+      await debugSyncQueue();
+    });
 
     return product;
   }
@@ -261,33 +271,43 @@ export class LocalProductRepository
 
     const db = await getDatabase();
 
-    await db.runAsync(
-      `
-        UPDATE products
-        SET
-          name = ?,
-          category = ?,
-          quantity = ?,
-          unit = ?,
-          purchase_date = ?,
-          expiration_date = ?,
-          location = ?,
-          status = ?,
-          updated_at = ?,
-          sync_status = 'pending'
-        WHERE id = ?
-      `,
-      updatedProduct.name,
-      updatedProduct.category,
-      updatedProduct.quantity,
-      updatedProduct.unit,
-      updatedProduct.purchaseDate ?? null,
-      updatedProduct.expirationDate ?? null,
-      updatedProduct.location,
-      updatedProduct.status,
-      updatedProduct.updatedAt,
-      updatedProduct.id
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          UPDATE products
+          SET
+            name = ?,
+            category = ?,
+            quantity = ?,
+            unit = ?,
+            purchase_date = ?,
+            expiration_date = ?,
+            location = ?,
+            status = ?,
+            updated_at = ?,
+            sync_status = 'pending'
+          WHERE id = ?
+        `,
+        updatedProduct.name,
+        updatedProduct.category,
+        updatedProduct.quantity,
+        updatedProduct.unit,
+        updatedProduct.purchaseDate ?? null,
+        updatedProduct.expirationDate ?? null,
+        updatedProduct.location,
+        updatedProduct.status,
+        updatedProduct.updatedAt,
+        updatedProduct.id
+      );
+
+      await enqueueSyncOperation(
+        'product',
+        updatedProduct.id,
+        'update',
+        updatedProduct
+      );
+      await debugSyncQueue();
+    });
 
     return updatedProduct;
   }
@@ -295,21 +315,44 @@ export class LocalProductRepository
   async delete(
     id: string
   ): Promise<void> {
-    const db = await getDatabase();
+    const product =
+      await this.findById(id);
 
-    const result =
-      await db.runAsync(
-        `
-          DELETE FROM products
-          WHERE id = ?
-        `,
-        id
-      );
-
-    if (result.changes === 0) {
+    if (!product) {
       throw new Error(
         'Producto no encontrado.'
       );
     }
+
+    const db = await getDatabase();
+
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            DELETE FROM products
+            WHERE id = ?
+          `,
+          id
+        );
+
+      if (result.changes === 0) {
+        throw new Error(
+          'Producto no encontrado.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'product',
+        id,
+        'delete',
+        {
+          id,
+          householdId:
+            product.householdId,
+        }
+      );
+      await debugSyncQueue();
+    });
   }
 }

@@ -10,6 +10,10 @@ import {
   getDatabase,
 } from '../local/database';
 
+import {
+  enqueueSyncOperation,
+} from '../local/syncQueue';
+
 function generateId(): string {
   return `${Date.now()}-${Math.random()
     .toString(36)
@@ -79,33 +83,42 @@ export class LocalSavingsGoalRepository
       updatedAt: now,
     };
 
-    await db.runAsync(
-      `
-        INSERT INTO savings_goals (
-          id,
-          household_id,
-          name,
-          target_amount,
-          saved_amount,
-          target_date,
-          status,
-          created_at,
-          updated_at,
-          sync_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      goal.id,
-      goal.householdId,
-      goal.name,
-      goal.targetAmount,
-      goal.savedAmount,
-      goal.targetDate ?? null,
-      goal.status,
-      goal.createdAt,
-      goal.updatedAt,
-      'pending'
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          INSERT INTO savings_goals (
+            id,
+            household_id,
+            name,
+            target_amount,
+            saved_amount,
+            target_date,
+            status,
+            created_at,
+            updated_at,
+            sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        goal.id,
+        goal.householdId,
+        goal.name,
+        goal.targetAmount,
+        goal.savedAmount,
+        goal.targetDate ?? null,
+        goal.status,
+        goal.createdAt,
+        goal.updatedAt,
+        'pending'
+      );
+
+      await enqueueSyncOperation(
+        'savings_goal',
+        goal.id,
+        'create',
+        goal
+      );
+    });
 
     return goal;
   }
@@ -188,27 +201,36 @@ export class LocalSavingsGoalRepository
 
     const db = await getDatabase();
 
-    await db.runAsync(
-      `
-        UPDATE savings_goals
-        SET
-          name = ?,
-          target_amount = ?,
-          saved_amount = ?,
-          target_date = ?,
-          status = ?,
-          updated_at = ?,
-          sync_status = 'pending'
-        WHERE id = ?
-      `,
-      updatedGoal.name,
-      updatedGoal.targetAmount,
-      updatedGoal.savedAmount,
-      updatedGoal.targetDate ?? null,
-      updatedGoal.status,
-      updatedGoal.updatedAt,
-      updatedGoal.id
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          UPDATE savings_goals
+          SET
+            name = ?,
+            target_amount = ?,
+            saved_amount = ?,
+            target_date = ?,
+            status = ?,
+            updated_at = ?,
+            sync_status = 'pending'
+          WHERE id = ?
+        `,
+        updatedGoal.name,
+        updatedGoal.targetAmount,
+        updatedGoal.savedAmount,
+        updatedGoal.targetDate ?? null,
+        updatedGoal.status,
+        updatedGoal.updatedAt,
+        updatedGoal.id
+      );
+
+      await enqueueSyncOperation(
+        'savings_goal',
+        updatedGoal.id,
+        'update',
+        updatedGoal
+      );
+    });
 
     return updatedGoal;
   }
@@ -216,21 +238,41 @@ export class LocalSavingsGoalRepository
   async delete(
     id: string
   ): Promise<void> {
-    const db = await getDatabase();
+    const goal = await this.findById(id);
 
-    const result =
-      await db.runAsync(
-        `
-          DELETE FROM savings_goals
-          WHERE id = ?
-        `,
-        id
-      );
-
-    if (result.changes === 0) {
+    if (!goal) {
       throw new Error(
         'Meta de ahorro no encontrada.'
       );
     }
+
+    const db = await getDatabase();
+
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            DELETE FROM savings_goals
+            WHERE id = ?
+          `,
+          id
+        );
+
+      if (result.changes === 0) {
+        throw new Error(
+          'Meta de ahorro no encontrada.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'savings_goal',
+        id,
+        'delete',
+        {
+          id,
+          householdId: goal.householdId,
+        }
+      );
+    });
   }
 }

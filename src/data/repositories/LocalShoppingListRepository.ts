@@ -13,6 +13,10 @@ import {
   getDatabase,
 } from '../local/database';
 
+import {
+  enqueueSyncOperation,
+} from '../local/syncQueue';
+
 function generateId(): string {
   return `${Date.now()}-${Math.random()
     .toString(36)
@@ -140,33 +144,42 @@ export class LocalShoppingListRepository
       updatedAt: now,
     };
 
-    await db.runAsync(
-      `
-        INSERT INTO shopping_lists (
-          id,
-          household_id,
-          name,
-          date,
-          status,
-          created_by,
-          created_at,
-          updated_at,
-          sync_status
-        )
-        VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-      `,
-      list.id,
-      list.householdId,
-      list.name,
-      list.date,
-      list.status,
-      list.createdBy,
-      list.createdAt,
-      list.updatedAt,
-      'pending'
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          INSERT INTO shopping_lists (
+            id,
+            household_id,
+            name,
+            date,
+            status,
+            created_by,
+            created_at,
+            updated_at,
+            sync_status
+          )
+          VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?
+          )
+        `,
+        list.id,
+        list.householdId,
+        list.name,
+        list.date,
+        list.status,
+        list.createdBy,
+        list.createdAt,
+        list.updatedAt,
+        'pending'
+      );
+
+      await enqueueSyncOperation(
+        'shopping_list',
+        list.id,
+        'create',
+        list
+      );
+    });
 
     return list;
   }
@@ -277,6 +290,16 @@ export class LocalShoppingListRepository
           'pending'
         );
 
+        await enqueueSyncOperation(
+          'shopping_item',
+          item.id,
+          'create',
+          {
+            ...item,
+            shoppingListId: listId,
+          }
+        );
+
         await db.runAsync(
           `
             UPDATE shopping_lists
@@ -288,6 +311,17 @@ export class LocalShoppingListRepository
           `,
           now,
           listId
+        );
+
+        await enqueueSyncOperation(
+          'shopping_list',
+          listId,
+          'update',
+          {
+            id: listId,
+            status: 'active',
+            updatedAt: now,
+          }
         );
       }
     );
@@ -353,6 +387,18 @@ export class LocalShoppingListRepository
           itemId
         );
 
+        await enqueueSyncOperation(
+          'shopping_item',
+          itemId,
+          'update',
+          {
+            id: itemId,
+            shoppingListId: listId,
+            status: newStatus,
+            updatedAt: now,
+          }
+        );
+
         const rows =
           await db.getAllAsync<ShoppingItemRow>(
             `
@@ -386,6 +432,17 @@ export class LocalShoppingListRepository
           now,
           listId
         );
+
+        await enqueueSyncOperation(
+          'shopping_list',
+          listId,
+          'update',
+          {
+            id: listId,
+            status: listStatus,
+            updatedAt: now,
+          }
+        );
       }
     );
 
@@ -406,6 +463,24 @@ export class LocalShoppingListRepository
     itemId: string
   ): Promise<ShoppingList> {
     const db = await getDatabase();
+
+    const item =
+      await db.getFirstAsync<ShoppingItemRow>(
+        `
+          SELECT *
+          FROM shopping_items
+          WHERE id = ?
+            AND shopping_list_id = ?
+        `,
+        itemId,
+        listId
+      );
+
+    if (!item) {
+      throw new Error(
+        'Producto de la lista no encontrado.'
+      );
+    }
 
     const now =
       new Date().toISOString();
@@ -431,6 +506,16 @@ export class LocalShoppingListRepository
           );
         }
 
+        await enqueueSyncOperation(
+          'shopping_item',
+          itemId,
+          'delete',
+          {
+            id: itemId,
+            shoppingListId: listId,
+          }
+        );
+
         const rows =
           await db.getAllAsync<ShoppingItemRow>(
             `
@@ -464,6 +549,17 @@ export class LocalShoppingListRepository
           now,
           listId
         );
+
+        await enqueueSyncOperation(
+          'shopping_list',
+          listId,
+          'update',
+          {
+            id: listId,
+            status: listStatus,
+            updatedAt: now,
+          }
+        );
       }
     );
 
@@ -482,22 +578,42 @@ export class LocalShoppingListRepository
   async deleteList(
     id: string
   ): Promise<void> {
-    const db = await getDatabase();
+    const list = await this.findById(id);
 
-    const result =
-      await db.runAsync(
-        `
-          DELETE FROM shopping_lists
-          WHERE id = ?
-        `,
-        id
-      );
-
-    if (result.changes === 0) {
+    if (!list) {
       throw new Error(
         'Lista de compras no encontrada.'
       );
     }
+
+    const db = await getDatabase();
+
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            DELETE FROM shopping_lists
+            WHERE id = ?
+          `,
+          id
+        );
+
+      if (result.changes === 0) {
+        throw new Error(
+          'Lista de compras no encontrada.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'shopping_list',
+        id,
+        'delete',
+        {
+          id,
+          householdId: list.householdId,
+        }
+      );
+    });
   }
 
   async updateStatus(
@@ -509,26 +625,39 @@ export class LocalShoppingListRepository
     const now =
       new Date().toISOString();
 
-    const result =
-      await db.runAsync(
-        `
-          UPDATE shopping_lists
-          SET
-            status = ?,
-            updated_at = ?,
-            sync_status = 'pending'
-          WHERE id = ?
-        `,
-        status,
-        now,
-        id
-      );
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            UPDATE shopping_lists
+            SET
+              status = ?,
+              updated_at = ?,
+              sync_status = 'pending'
+            WHERE id = ?
+          `,
+          status,
+          now,
+          id
+        );
 
-    if (result.changes === 0) {
-      throw new Error(
-        'Lista de compras no encontrada.'
+      if (result.changes === 0) {
+        throw new Error(
+          'Lista de compras no encontrada.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'shopping_list',
+        id,
+        'update',
+        {
+          id,
+          status,
+          updatedAt: now,
+        }
       );
-    }
+    });
 
     const updatedList =
       await this.findById(id);

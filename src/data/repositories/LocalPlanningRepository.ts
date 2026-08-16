@@ -10,6 +10,10 @@ import {
   getDatabase,
 } from '../local/database';
 
+import {
+  enqueueSyncOperation,
+} from '../local/syncQueue';
+
 function generateId(): string {
   return `${Date.now()}-${Math.random()
     .toString(36)
@@ -69,35 +73,44 @@ export class LocalPlanningRepository
       updatedAt: now,
     };
 
-    await db.runAsync(
-      `
-        INSERT INTO planning_items (
-          id,
-          household_id,
-          user_id,
-          title,
-          description,
-          type,
-          date,
-          completed,
-          created_at,
-          updated_at,
-          sync_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      item.id,
-      item.householdId,
-      item.userId,
-      item.title,
-      item.description ?? null,
-      item.type,
-      item.date,
-      item.completed ? 1 : 0,
-      item.createdAt,
-      item.updatedAt,
-      'pending'
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          INSERT INTO planning_items (
+            id,
+            household_id,
+            user_id,
+            title,
+            description,
+            type,
+            date,
+            completed,
+            created_at,
+            updated_at,
+            sync_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        item.id,
+        item.householdId,
+        item.userId,
+        item.title,
+        item.description ?? null,
+        item.type,
+        item.date,
+        item.completed ? 1 : 0,
+        item.createdAt,
+        item.updatedAt,
+        'pending'
+      );
+
+      await enqueueSyncOperation(
+        'planning_item',
+        item.id,
+        'create',
+        item
+      );
+    });
 
     return item;
   }
@@ -168,27 +181,36 @@ export class LocalPlanningRepository
 
     const db = await getDatabase();
 
-    await db.runAsync(
-      `
-        UPDATE planning_items
-        SET
-          title = ?,
-          description = ?,
-          type = ?,
-          date = ?,
-          completed = ?,
-          updated_at = ?,
-          sync_status = 'pending'
-        WHERE id = ?
-      `,
-      updatedItem.title,
-      updatedItem.description ?? null,
-      updatedItem.type,
-      updatedItem.date,
-      updatedItem.completed ? 1 : 0,
-      updatedItem.updatedAt,
-      updatedItem.id
-    );
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `
+          UPDATE planning_items
+          SET
+            title = ?,
+            description = ?,
+            type = ?,
+            date = ?,
+            completed = ?,
+            updated_at = ?,
+            sync_status = 'pending'
+          WHERE id = ?
+        `,
+        updatedItem.title,
+        updatedItem.description ?? null,
+        updatedItem.type,
+        updatedItem.date,
+        updatedItem.completed ? 1 : 0,
+        updatedItem.updatedAt,
+        updatedItem.id
+      );
+
+      await enqueueSyncOperation(
+        'planning_item',
+        updatedItem.id,
+        'update',
+        updatedItem
+      );
+    });
 
     return updatedItem;
   }
@@ -196,21 +218,41 @@ export class LocalPlanningRepository
   async delete(
     id: string
   ): Promise<void> {
-    const db = await getDatabase();
+    const item = await this.findById(id);
 
-    const result =
-      await db.runAsync(
-        `
-          DELETE FROM planning_items
-          WHERE id = ?
-        `,
-        id
-      );
-
-    if (result.changes === 0) {
+    if (!item) {
       throw new Error(
         'Elemento de planificación no encontrado.'
       );
     }
+
+    const db = await getDatabase();
+
+    await db.withTransactionAsync(async () => {
+      const result =
+        await db.runAsync(
+          `
+            DELETE FROM planning_items
+            WHERE id = ?
+          `,
+          id
+        );
+
+      if (result.changes === 0) {
+        throw new Error(
+          'Elemento de planificación no encontrado.'
+        );
+      }
+
+      await enqueueSyncOperation(
+        'planning_item',
+        id,
+        'delete',
+        {
+          id,
+          householdId: item.householdId,
+        }
+      );
+    });
   }
 }
