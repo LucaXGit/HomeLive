@@ -15,6 +15,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { PlanningItemType } from '../../../domain/entities';
 import { usePlanning } from '../../context/PlanningContext';
+import { formatDateKey } from '../../../utils/dateUtils';
+import DatePickerField from '../../components/DatePickerField';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -55,7 +57,9 @@ export default function CreatePlanningItemScreen({
   const [title, setTitle] = useState('');
   const [description, setDescription] =
     useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(
+    formatDateKey(new Date())
+  );
 
   const [type, setType] =
     useState<PlanningItemType>('task');
@@ -133,11 +137,10 @@ export default function CreatePlanningItemScreen({
         onChangeText={setDescription}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Fecha YYYY-MM-DD"
+      <DatePickerField
+        label="Fecha"
         value={date}
-        onChangeText={setDate}
+        onChange={setDate}
       />
 
       <Text style={styles.label}>

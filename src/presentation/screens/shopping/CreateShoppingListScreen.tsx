@@ -13,6 +13,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useShoppingLists } from '../../context/ShoppingListContext';
+import DatePickerField from '../../components/DatePickerField';
+import { formatDateKey } from '../../../utils/dateUtils';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -26,7 +28,9 @@ export default function CreateShoppingListScreen({
     useShoppingLists();
 
   const [name, setName] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(
+    formatDateKey(new Date())
+  );
   const [submitting, setSubmitting] =
     useState(false);
 
@@ -77,11 +81,10 @@ export default function CreateShoppingListScreen({
         onChangeText={setName}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Fecha YYYY-MM-DD"
+      <DatePickerField
+        label="Fecha de la lista"
         value={date}
-        onChangeText={setDate}
+        onChange={setDate}
       />
 
       <Pressable

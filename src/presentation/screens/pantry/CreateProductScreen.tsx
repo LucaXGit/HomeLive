@@ -15,6 +15,7 @@ import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { ProductLocation } from '../../../domain/entities';
 import { isValidExpirationDate } from '../../../domain/usecases/productStatus';
 import { usePantry } from '../../context/PantryContext';
+import DatePickerField from '../../components/DatePickerField';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -30,6 +31,8 @@ export default function CreateProductScreen({
   const [category, setCategory] = useState('');
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('');
+  const [purchaseDate, setPurchaseDate] =
+    useState('');
   const [expirationDate, setExpirationDate] =
     useState('');
 
@@ -87,6 +90,8 @@ export default function CreateProductScreen({
         category,
         quantity: parsedQuantity,
         unit,
+        purchaseDate:
+          purchaseDate.trim() || undefined,
         expirationDate:
           expirationDate.trim() || undefined,
         location,
@@ -145,11 +150,18 @@ export default function CreateProductScreen({
         onChangeText={setUnit}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Caducidad YYYY-MM-DD (opcional)"
+      <DatePickerField
+        label="Fecha de compra"
+        value={purchaseDate}
+        onChange={setPurchaseDate}
+        optional
+      />
+
+      <DatePickerField
+        label="Fecha de caducidad"
         value={expirationDate}
-        onChangeText={setExpirationDate}
+        onChange={setExpirationDate}
+        optional
       />
 
       <Text style={styles.label}>

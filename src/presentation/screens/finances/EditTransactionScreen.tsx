@@ -18,6 +18,7 @@ import {
   TransactionType,
 } from '../../../domain/entities';
 import { useFinance } from '../../context/FinanceContext';
+import DatePickerField from '../../components/DatePickerField';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -195,11 +196,10 @@ export default function EditTransactionScreen({
         onChangeText={setCategory}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Fecha YYYY-MM-DD"
+      <DatePickerField
+        label="Fecha del movimiento"
         value={date}
-        onChangeText={setDate}
+        onChange={setDate}
       />
 
       <TextInput

@@ -10,7 +10,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
@@ -19,10 +18,20 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { usePlanning } from '../context/PlanningContext';
 
-type Props = NativeStackScreenProps<
-  RootStackParamList,
-  'Planning'
->;
+import {
+  addDays,
+  formatDateKey,
+  getShortDayName,
+  getWeekDays,
+  getWeekLabel,
+  startOfWeek,
+} from '../../utils/dateUtils';
+
+type Props =
+  NativeStackScreenProps<
+    RootStackParamList,
+    'Planning'
+  >;
 
 export default function PlanningScreen({
   navigation,
@@ -34,24 +43,72 @@ export default function PlanningScreen({
     deleteItem,
   } = usePlanning();
 
-  const [dateFilter, setDateFilter] =
-    useState('');
+  const initialWeekStart =
+    startOfWeek(new Date());
 
-  const filteredItems = useMemo(() => {
-    const filtered =
-      dateFilter.trim()
-        ? items.filter(
-            (item) =>
-              item.date ===
-              dateFilter.trim()
+  const [weekStart, setWeekStart] =
+    useState(initialWeekStart);
+
+  const [
+    selectedDate,
+    setSelectedDate,
+  ] = useState(
+    formatDateKey(new Date())
+  );
+
+  const weekDays = useMemo(
+    () => getWeekDays(weekStart),
+    [weekStart]
+  );
+
+  const selectedItems = useMemo(
+    () =>
+      items
+        .filter(
+          (item) =>
+            item.date === selectedDate
+        )
+        .sort((a, b) =>
+          a.createdAt.localeCompare(
+            b.createdAt
           )
-        : items;
+        ),
+    [items, selectedDate]
+  );
 
-    return [...filtered].sort(
-      (a, b) =>
-        a.date.localeCompare(b.date)
+  const goToPreviousWeek = () => {
+    const newWeekStart =
+      addDays(weekStart, -7);
+
+    setWeekStart(newWeekStart);
+
+    setSelectedDate(
+      formatDateKey(newWeekStart)
     );
-  }, [items, dateFilter]);
+  };
+
+  const goToNextWeek = () => {
+    const newWeekStart =
+      addDays(weekStart, 7);
+
+    setWeekStart(newWeekStart);
+
+    setSelectedDate(
+      formatDateKey(newWeekStart)
+    );
+  };
+
+  const goToCurrentWeek = () => {
+    const today = new Date();
+
+    setWeekStart(
+      startOfWeek(today)
+    );
+
+    setSelectedDate(
+      formatDateKey(today)
+    );
+  };
 
   const handleDelete = (
     id: string
@@ -127,13 +184,124 @@ export default function PlanningScreen({
       contentContainerStyle={
         styles.content
       }
-      data={filteredItems}
+      data={selectedItems}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <>
           <Text style={styles.title}>
             Planificación semanal
           </Text>
+
+          <Text
+            style={styles.weekLabel}
+          >
+            {getWeekLabel(weekStart)}
+          </Text>
+
+          <View
+            style={
+              styles.weekNavigation
+            }
+          >
+            <Pressable
+              style={
+                styles.navigationButton
+              }
+              onPress={
+                goToPreviousWeek
+              }
+            >
+              <Text>
+                Semana anterior
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={
+                styles.navigationButton
+              }
+              onPress={goToNextWeek}
+            >
+              <Text>
+                Semana siguiente
+              </Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            style={
+              styles.todayButton
+            }
+            onPress={
+              goToCurrentWeek
+            }
+          >
+            <Text>
+              Ir a esta semana
+            </Text>
+          </Pressable>
+
+          <View style={styles.days}>
+            {weekDays.map(
+              (date) => {
+                const dateKey =
+                  formatDateKey(date);
+
+                const isSelected =
+                  dateKey ===
+                  selectedDate;
+
+                const itemCount =
+                  items.filter(
+                    (item) =>
+                      item.date ===
+                      dateKey
+                  ).length;
+
+                return (
+                  <Pressable
+                    key={dateKey}
+                    style={[
+                      styles.dayButton,
+                      isSelected &&
+                        styles.selectedDay,
+                    ]}
+                    onPress={() =>
+                      setSelectedDate(
+                        dateKey
+                      )
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.dayName
+                      }
+                    >
+                      {getShortDayName(
+                        date
+                      )}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.dayNumber
+                      }
+                    >
+                      {date.getDate()}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.itemCount
+                      }
+                    >
+                      {itemCount}
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
+          </View>
 
           <Pressable
             style={styles.addButton}
@@ -152,52 +320,37 @@ export default function PlanningScreen({
             </Text>
           </Pressable>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Filtrar por fecha YYYY-MM-DD"
-            value={dateFilter}
-            onChangeText={
-              setDateFilter
+          <Text
+            style={
+              styles.selectedDateTitle
             }
-          />
-
-          {dateFilter !== '' && (
-            <Pressable
-              style={
-                styles.clearButton
-              }
-              onPress={() =>
-                setDateFilter('')
-              }
-            >
-              <Text>
-                Mostrar todos los días
-              </Text>
-            </Pressable>
-          )}
+          >
+            Actividades del{' '}
+            {selectedDate}
+          </Text>
         </>
       }
       ListEmptyComponent={
         <View style={styles.empty}>
           <Text>
-            No hay elementos de
-            planificación.
+            No hay elementos para
+            este día.
           </Text>
         </View>
       }
       renderItem={({ item }) => (
         <View style={styles.card}>
-          <Text style={styles.date}>
-            {item.date}
-          </Text>
-
-          <Text style={styles.itemTitle}>
+          <Text
+            style={styles.itemTitle}
+          >
             {item.title}
           </Text>
 
           <Text>
             Tipo:{' '}
-            {getTypeLabel(item.type)}
+            {getTypeLabel(
+              item.type
+            )}
           </Text>
 
           {item.description && (
@@ -245,7 +398,9 @@ export default function PlanningScreen({
                 )
               }
             >
-              <Text>Editar</Text>
+              <Text>
+                Editar
+              </Text>
             </Pressable>
 
             <Pressable
@@ -256,7 +411,9 @@ export default function PlanningScreen({
                 handleDelete(item.id)
               }
             >
-              <Text>Eliminar</Text>
+              <Text>
+                Eliminar
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -265,74 +422,140 @@ export default function PlanningScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  addButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 14,
-    marginBottom: 16,
-  },
-  addButtonText: {
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 10,
-  },
-  clearButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  empty: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 12,
-  },
-  date: {
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  itemTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 6,
-  },
-  actions: {
-    gap: 8,
-    marginTop: 12,
-  },
-  actionButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    alignItems: 'center',
-  },
-});
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+
+    content: {
+      padding: 20,
+      paddingBottom: 40,
+    },
+
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    title: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      marginBottom: 8,
+    },
+
+    weekLabel: {
+      fontSize: 16,
+      marginBottom: 16,
+    },
+
+    weekNavigation: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 10,
+    },
+
+    navigationButton: {
+      flex: 1,
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 10,
+      alignItems: 'center',
+    },
+
+    todayButton: {
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 10,
+      alignItems: 'center',
+      marginBottom: 18,
+    },
+
+    days: {
+      flexDirection: 'row',
+      justifyContent:
+        'space-between',
+      gap: 4,
+      marginBottom: 20,
+    },
+
+    dayButton: {
+      flex: 1,
+      minHeight: 82,
+      borderWidth: 1,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 6,
+    },
+
+    selectedDay: {
+      backgroundColor:
+        '#e0e0e0',
+      borderWidth: 2,
+    },
+
+    dayName: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+
+    dayNumber: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginVertical: 2,
+    },
+
+    itemCount: {
+      fontSize: 12,
+    },
+
+    addButton: {
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 14,
+      marginBottom: 20,
+    },
+
+    addButtonText: {
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+
+    selectedDateTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 12,
+    },
+
+    empty: {
+      paddingVertical: 35,
+      alignItems: 'center',
+    },
+
+    card: {
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 12,
+    },
+
+    itemTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 6,
+    },
+
+    actions: {
+      gap: 8,
+      marginTop: 12,
+    },
+
+    actionButton: {
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 10,
+      alignItems: 'center',
+    },
+  });

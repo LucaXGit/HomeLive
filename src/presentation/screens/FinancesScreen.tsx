@@ -15,6 +15,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { useFinance } from '../context/FinanceContext';
+import DatePickerField from '../components/DatePickerField';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -198,18 +199,18 @@ export default function FinancesScreen({
               onChangeText={setCategoryFilter}
             />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Desde YYYY-MM-DD"
+            <DatePickerField
+              label="Desde"
               value={startDate}
-              onChangeText={setStartDate}
+              onChange={setStartDate}
+              optional
             />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Hasta YYYY-MM-DD"
+            <DatePickerField
+              label="Hasta"
               value={endDate}
-              onChangeText={setEndDate}
+              onChange={setEndDate}
+              optional
             />
 
             <Pressable

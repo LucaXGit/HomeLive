@@ -14,6 +14,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { RootStackParamList } from '../../../navigation/AppNavigator';
 import { useSavingsGoals } from '../../context/SavingsGoalContext';
+import DatePickerField from '../../components/DatePickerField';
 
 type Props = NativeStackScreenProps<
   RootStackParamList,
@@ -159,11 +160,11 @@ export default function EditSavingsGoalScreen({
         onChangeText={setSavedAmount}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Fecha objetivo YYYY-MM-DD"
+      <DatePickerField
+        label="Fecha objetivo"
         value={targetDate}
-        onChangeText={setTargetDate}
+        onChange={setTargetDate}
+        optional
       />
 
       <Pressable
