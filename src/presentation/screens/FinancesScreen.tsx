@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -7,6 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -31,6 +32,75 @@ export default function FinancesScreen({
     balance,
     deleteTransaction,
   } = useFinance();
+
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const filteredTransactions = useMemo(() => {
+    const normalizedCategory =
+      categoryFilter.trim().toLowerCase();
+
+    return transactions.filter((transaction) => {
+      const matchesCategory =
+        !normalizedCategory ||
+        transaction.category
+          .toLowerCase()
+          .includes(normalizedCategory);
+
+      const matchesStartDate =
+        !startDate.trim() ||
+        transaction.date >= startDate.trim();
+
+      const matchesEndDate =
+        !endDate.trim() ||
+        transaction.date <= endDate.trim();
+
+      return (
+        matchesCategory &&
+        matchesStartDate &&
+        matchesEndDate
+      );
+    });
+  }, [
+    transactions,
+    categoryFilter,
+    startDate,
+    endDate,
+  ]);
+
+  const filteredIncome = useMemo(
+    () =>
+      filteredTransactions
+        .filter(
+          (transaction) =>
+            transaction.type === 'income'
+        )
+        .reduce(
+          (total, transaction) =>
+            total + transaction.amount,
+          0
+        ),
+    [filteredTransactions]
+  );
+
+  const filteredExpenses = useMemo(
+    () =>
+      filteredTransactions
+        .filter(
+          (transaction) =>
+            transaction.type === 'expense'
+        )
+        .reduce(
+          (total, transaction) =>
+            total + transaction.amount,
+          0
+        ),
+    [filteredTransactions]
+  );
+
+  const filteredBalance =
+    filteredIncome - filteredExpenses;
 
   const handleDelete = (id: string) => {
     Alert.alert(
@@ -73,95 +143,144 @@ export default function FinancesScreen({
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        Finanzas
-      </Text>
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      data={[...filteredTransactions].reverse()}
+      keyExtractor={(item) => item.id}
+      ListHeaderComponent={() => (
+        <>
+          <Text style={styles.title}>Finanzas</Text>
 
-      <View style={styles.summary}>
-        <Text>
-          Ingresos: ${totalIncome.toFixed(2)}
-        </Text>
+          <View style={styles.summary}>
+            <Text>
+              Ingresos: ${totalIncome.toFixed(2)}
+            </Text>
 
-        <Text>
-          Gastos: ${totalExpenses.toFixed(2)}
-        </Text>
+            <Text>
+              Gastos: ${totalExpenses.toFixed(2)}
+            </Text>
 
-        <Text style={styles.balance}>
-          Balance: ${balance.toFixed(2)}
-        </Text>
-      </View>
+            <Text style={styles.balance}>
+              Balance: ${balance.toFixed(2)}
+            </Text>
+          </View>
 
-      <Pressable
-        style={styles.addButton}
-        onPress={() =>
-          navigation.navigate(
-            'CreateTransaction'
-          )
-        }
-      >
-        <Text style={styles.addButtonText}>
-          Registrar movimiento
-        </Text>
-      </Pressable>
+          <Pressable
+            style={styles.addButton}
+            onPress={() =>
+              navigation.navigate('CreateTransaction')
+            }
+          >
+            <Text style={styles.addButtonText}>
+              Registrar movimiento
+            </Text>
+          </Pressable>
 
-      {transactions.length === 0 ? (
-        <View style={styles.center}>
-          <Text>
-            No hay movimientos registrados.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={[...transactions].reverse()}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              <Text style={styles.transactionType}>
-                {item.type === 'income'
-                  ? 'Ingreso'
-                  : 'Gasto'}
-              </Text>
+          <View style={styles.filters}>
+            <Text style={styles.filterTitle}>Filtros</Text>
 
-              <Text>
-                ${item.amount.toFixed(2)}
-              </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Categoría"
+              value={categoryFilter}
+              onChangeText={setCategoryFilter}
+            />
 
-              <Text>
-                Categoría: {item.category}
-              </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Desde YYYY-MM-DD"
+              value={startDate}
+              onChangeText={setStartDate}
+            />
 
-              <Text>
-                Fecha: {item.date}
-              </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Hasta YYYY-MM-DD"
+              value={endDate}
+              onChangeText={setEndDate}
+            />
 
-              {item.description && (
-                <Text>
-                  {item.description}
-                </Text>
-              )}
+            <Pressable
+              style={styles.clearButton}
+              onPress={() => {
+                setCategoryFilter('');
+                setStartDate('');
+                setEndDate('');
+              }}
+            >
+              <Text>Limpiar filtros</Text>
+            </Pressable>
+          </View>
 
-              <Pressable
-                style={styles.deleteButton}
-                onPress={() =>
-                  handleDelete(item.id)
-                }
-              >
-                <Text>Eliminar</Text>
-              </Pressable>
-            </View>
-          )}
-        />
+          <View style={styles.filteredSummary}>
+            <Text>
+              Ingresos filtrados: ${filteredIncome.toFixed(2)}
+            </Text>
+
+            <Text>
+              Gastos filtrados: ${filteredExpenses.toFixed(2)}
+            </Text>
+
+            <Text style={styles.balance}>
+              Balance filtrado: ${filteredBalance.toFixed(2)}
+            </Text>
+          </View>
+
+          <Text style={styles.historyTitle}>Historial</Text>
+        </>
       )}
-    </View>
+      ListEmptyComponent={
+        <View style={styles.emptyContainer}>
+          <Text>No se encontraron movimientos.</Text>
+        </View>
+      }
+      renderItem={({ item }) => (
+        <View style={styles.card}>
+          <Text style={styles.transactionType}>
+            {item.type === 'income' ? 'Ingreso' : 'Gasto'}
+          </Text>
+
+          <Text>${item.amount.toFixed(2)}</Text>
+
+          <Text>Categoría: {item.category}</Text>
+
+          <Text>Fecha: {item.date}</Text>
+
+          {item.description && <Text>{item.description}</Text>}
+
+          <View style={styles.actions}>
+            <Pressable
+              style={styles.actionButton}
+              onPress={() =>
+                navigation.navigate('EditTransaction', {
+                  transactionId: item.id,
+                })
+              }
+            >
+              <Text>Editar</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.actionButton}
+              onPress={() => handleDelete(item.id)}
+            >
+              <Text>Eliminar</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
     padding: 20,
+    paddingBottom: 40,
   },
   center: {
     flex: 1,
@@ -193,6 +312,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
   },
+  filters: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+  },
+  filterTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  clearButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+  },
+  filteredSummary: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    marginBottom: 16,
+    gap: 6,
+  },
+  historyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  emptyContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
   list: {
     gap: 12,
   },
@@ -200,14 +358,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     padding: 16,
+    marginBottom: 12,
   },
   transactionType: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 6,
   },
-  deleteButton: {
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 12,
+  },
+  actionButton: {
+    flex: 1,
     borderWidth: 1,
     borderRadius: 8,
     padding: 10,

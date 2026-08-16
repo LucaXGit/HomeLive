@@ -9,6 +9,7 @@ import React, {
 import { FinancialTransaction } from '../../domain/entities';
 import {
   CreateFinancialTransactionData,
+  UpdateFinancialTransactionData,
 } from '../../domain/repositories/FinancialRepository';
 import { LocalFinancialRepository } from '../../data/repositories/LocalFinancialRepository';
 
@@ -23,6 +24,10 @@ interface FinanceContextValue {
       CreateFinancialTransactionData,
       'householdId' | 'userId'
     >
+  ) => Promise<void>;
+  updateTransaction: (
+    id: string,
+    data: UpdateFinancialTransactionData
   ) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   reloadTransactions: () => Promise<void>;
@@ -100,6 +105,22 @@ export function FinanceProvider({
     ]);
   };
 
+  const updateTransaction = async (
+    id: string,
+    data: UpdateFinancialTransactionData
+  ) => {
+    const updatedTransaction =
+      await financialRepository.update(id, data);
+
+    setTransactions((current) =>
+      current.map((transaction) =>
+        transaction.id === id
+          ? updatedTransaction
+          : transaction
+      )
+    );
+  };
+
   const deleteTransaction = async (
     id: string
   ) => {
@@ -151,6 +172,7 @@ export function FinanceProvider({
       transactions,
       loading,
       createTransaction,
+      updateTransaction,
       deleteTransaction,
       reloadTransactions,
       totalIncome,

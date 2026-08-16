@@ -3,6 +3,7 @@ import { FinancialTransaction } from '../../domain/entities';
 import {
   CreateFinancialTransactionData,
   FinancialRepository,
+  UpdateFinancialTransactionData,
 } from '../../domain/repositories/FinancialRepository';
 
 import {
@@ -72,6 +73,46 @@ export class LocalFinancialRepository
         (transaction) => transaction.id === id
       ) ?? null
     );
+  }
+
+  async update(
+    id: string,
+    data: UpdateFinancialTransactionData
+  ): Promise<FinancialTransaction> {
+    const transactions =
+      await getStoredFinancialTransactions();
+
+    const index = transactions.findIndex(
+      (transaction) => transaction.id === id
+    );
+
+    if (index === -1) {
+      throw new Error(
+        'Movimiento financiero no encontrado.'
+      );
+    }
+
+    const updatedTransaction: FinancialTransaction = {
+      ...transactions[index],
+      ...data,
+      category:
+        data.category !== undefined
+          ? data.category.trim()
+          : transactions[index].category,
+      description:
+        data.description !== undefined
+          ? data.description.trim() || undefined
+          : transactions[index].description,
+      updatedAt: new Date().toISOString(),
+    };
+
+    transactions[index] = updatedTransaction;
+
+    await saveStoredFinancialTransactions(
+      transactions
+    );
+
+    return updatedTransaction;
   }
 
   async delete(

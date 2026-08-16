@@ -15,6 +15,15 @@ export interface CreateFinancialTransactionData {
   description?: string;
 }
 
+export interface UpdateFinancialTransactionData {
+  type?: TransactionType;
+  amount?: number;
+  category?: string;
+  paymentMethod?: PaymentMethod;
+  date?: string;
+  description?: string;
+}
+
 export interface FinancialRepository {
   create(
     data: CreateFinancialTransactionData
@@ -27,6 +36,11 @@ export interface FinancialRepository {
   findById(
     id: string
   ): Promise<FinancialTransaction | null>;
+
+  update(
+    id: string,
+    data: UpdateFinancialTransactionData
+  ): Promise<FinancialTransaction>;
 
   delete(
     id: string
