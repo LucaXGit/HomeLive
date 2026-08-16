@@ -11,6 +11,8 @@ import RegisterScreen from '../presentation/screens/auth/RegisterScreen';
 
 import HomeScreen from '../presentation/screens/HomeScreen';
 import PantryScreen from '../presentation/screens/PantryScreen';
+import CreateProductScreen from '../presentation/screens/pantry/CreateProductScreen';
+import EditProductScreen from '../presentation/screens/pantry/EditProductScreen';
 import FinancesScreen from '../presentation/screens/FinancesScreen';
 import ShoppingScreen from '../presentation/screens/ShoppingScreen';
 import PlanningScreen from '../presentation/screens/PlanningScreen';
@@ -21,6 +23,10 @@ export type RootStackParamList = {
   CreateHousehold: undefined;
   Home: undefined;
   Pantry: undefined;
+  CreateProduct: undefined;
+  EditProduct: {
+    productId: string;
+  };
   Finances: undefined;
   Shopping: undefined;
   Planning: undefined;
@@ -97,6 +103,22 @@ export default function AppNavigator() {
             component={PantryScreen}
             options={{
               title: 'Despensa',
+            }}
+          />
+
+          <Stack.Screen
+            name="CreateProduct"
+            component={CreateProductScreen}
+            options={{
+              title: 'Registrar producto',
+            }}
+          />
+
+          <Stack.Screen
+            name="EditProduct"
+            component={EditProductScreen}
+            options={{
+              title: 'Editar producto',
             }}
           />
 

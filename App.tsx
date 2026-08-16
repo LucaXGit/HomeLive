@@ -5,14 +5,17 @@ import AppNavigator from './src/navigation/AppNavigator';
 
 import { AuthProvider } from './src/presentation/context/AuthContext';
 import { HouseholdProvider } from './src/presentation/context/HouseholdContext';
+import { PantryProvider } from './src/presentation/context/PantryContext';
 
 export default function App() {
   return (
     <AuthProvider>
       <HouseholdProvider>
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
+        <PantryProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+        </PantryProvider>
       </HouseholdProvider>
     </AuthProvider>
   );
