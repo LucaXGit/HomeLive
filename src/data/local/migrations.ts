@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 
 export async function runMigrations():
   Promise<void> {
@@ -49,6 +49,10 @@ export async function runMigrations():
 
   if (currentVersion < 7) {
     await migrateToVersion7(db);
+  }
+
+  if (currentVersion < 8) {
+    await migrateToVersion8(db);
   }
 
   await db.execAsync(
@@ -530,5 +534,62 @@ async function migrateToVersion7(
       ON shopping_lists(household_id);
     CREATE INDEX IF NOT EXISTS idx_shopping_items_list
       ON shopping_items(shopping_list_id);
+  `);
+}
+
+async function migrateToVersion8(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS financial_transactions;
+
+    CREATE TABLE financial_transactions (
+      id TEXT PRIMARY KEY NOT NULL,
+      household_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL
+        CHECK (
+          type IN (
+            'income',
+            'expense'
+          )
+        ),
+      amount REAL NOT NULL,
+      category TEXT NOT NULL,
+      payment_method TEXT NOT NULL
+        CHECK (
+          payment_method IN (
+            'cash',
+            'debit_card',
+            'credit_card',
+            'bank_transfer',
+            'other'
+          )
+        ),
+      date TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        ),
+      FOREIGN KEY (
+        household_id
+      )
+      REFERENCES households(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transactions_household
+      ON financial_transactions(household_id);
+    CREATE INDEX IF NOT EXISTS idx_transactions_date
+      ON financial_transactions(date);
   `);
 }

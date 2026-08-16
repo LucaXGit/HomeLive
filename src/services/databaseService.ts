@@ -14,6 +14,9 @@ import {
 import {
   migrateShoppingListsToSQLite,
 } from '../data/local/shoppingListMigration';
+import {
+  migrateFinancialTransactionsToSQLite,
+} from '../data/local/financialMigration';
 
 let initialized = false;
 
@@ -32,6 +35,8 @@ export async function initializeLocalDatabase():
   await migrateProductsToSQLite();
 
   await migrateShoppingListsToSQLite();
+
+  await migrateFinancialTransactionsToSQLite();
 
   initialized = true;
 }
