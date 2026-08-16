@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 10;
 
 export async function runMigrations():
   Promise<void> {
@@ -53,6 +53,14 @@ export async function runMigrations():
 
   if (currentVersion < 8) {
     await migrateToVersion8(db);
+  }
+
+  if (currentVersion < 9) {
+    await migrateToVersion9(db);
+  }
+
+  if (currentVersion < 10) {
+    await migrateToVersion10(db);
   }
 
   await db.execAsync(
@@ -591,5 +599,106 @@ async function migrateToVersion8(
       ON financial_transactions(household_id);
     CREATE INDEX IF NOT EXISTS idx_transactions_date
       ON financial_transactions(date);
+  `);
+}
+
+async function migrateToVersion9(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS savings_goals;
+
+    CREATE TABLE savings_goals (
+      id TEXT PRIMARY KEY NOT NULL,
+      household_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      target_amount REAL NOT NULL,
+      saved_amount REAL NOT NULL,
+      target_date TEXT,
+      status TEXT NOT NULL DEFAULT 'active'
+        CHECK (
+          status IN (
+            'active',
+            'completed',
+            'cancelled'
+          )
+        ),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        ),
+      FOREIGN KEY (
+        household_id
+      )
+      REFERENCES households(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_savings_goals_household
+      ON savings_goals(household_id);
+  `);
+}
+
+async function migrateToVersion10(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS planning_items;
+
+    CREATE TABLE planning_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      household_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      type TEXT NOT NULL
+        CHECK (
+          type IN (
+            'meal',
+            'recipe',
+            'activity',
+            'task',
+            'reminder'
+          )
+        ),
+      date TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0
+        CHECK (
+          completed IN (
+            0,
+            1
+          )
+        ),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        ),
+      FOREIGN KEY (
+        household_id
+      )
+      REFERENCES households(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_planning_household
+      ON planning_items(household_id);
+    CREATE INDEX IF NOT EXISTS idx_planning_date
+      ON planning_items(date);
   `);
 }

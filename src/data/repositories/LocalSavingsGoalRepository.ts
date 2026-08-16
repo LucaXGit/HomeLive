@@ -7,9 +7,8 @@ import {
 } from '../../domain/repositories/SavingsGoalRepository';
 
 import {
-  getStoredSavingsGoals,
-  saveStoredSavingsGoals,
-} from '../local/savingsGoalStorage';
+  getDatabase,
+} from '../local/database';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random()
@@ -26,14 +25,42 @@ function calculateStatus(
     : 'active';
 }
 
+interface SavingsGoalRow {
+  id: string;
+  household_id: string;
+  name: string;
+  target_amount: number;
+  saved_amount: number;
+  target_date: string | null;
+  status: SavingsGoal['status'];
+  created_at: string;
+  updated_at: string;
+  sync_status: string;
+}
+
+function rowToSavingsGoal(
+  row: SavingsGoalRow
+): SavingsGoal {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    targetAmount: row.target_amount,
+    savedAmount: row.saved_amount,
+    targetDate: row.target_date ?? undefined,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export class LocalSavingsGoalRepository
   implements SavingsGoalRepository
 {
   async create(
     data: CreateSavingsGoalData
   ): Promise<SavingsGoal> {
-    const goals =
-      await getStoredSavingsGoals();
+    const db = await getDatabase();
 
     const now = new Date().toISOString();
 
@@ -52,10 +79,33 @@ export class LocalSavingsGoalRepository
       updatedAt: now,
     };
 
-    await saveStoredSavingsGoals([
-      ...goals,
-      goal,
-    ]);
+    await db.runAsync(
+      `
+        INSERT INTO savings_goals (
+          id,
+          household_id,
+          name,
+          target_amount,
+          saved_amount,
+          target_date,
+          status,
+          created_at,
+          updated_at,
+          sync_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      goal.id,
+      goal.householdId,
+      goal.name,
+      goal.targetAmount,
+      goal.savedAmount,
+      goal.targetDate ?? null,
+      goal.status,
+      goal.createdAt,
+      goal.updatedAt,
+      'pending'
+    );
 
     return goal;
   }
@@ -63,69 +113,102 @@ export class LocalSavingsGoalRepository
   async findAllByHousehold(
     householdId: string
   ): Promise<SavingsGoal[]> {
-    const goals =
-      await getStoredSavingsGoals();
+    const db = await getDatabase();
 
-    return goals.filter(
-      (goal) =>
-        goal.householdId === householdId
-    );
+    const rows =
+      await db.getAllAsync<SavingsGoalRow>(
+        `
+          SELECT *
+          FROM savings_goals
+          WHERE household_id = ?
+          ORDER BY created_at DESC
+        `,
+        householdId
+      );
+
+    return rows.map(rowToSavingsGoal);
   }
 
   async findById(
     id: string
   ): Promise<SavingsGoal | null> {
-    const goals =
-      await getStoredSavingsGoals();
+    const db = await getDatabase();
 
-    return (
-      goals.find(
-        (goal) => goal.id === id
-      ) ?? null
-    );
+    const row =
+      await db.getFirstAsync<SavingsGoalRow>(
+        `
+          SELECT *
+          FROM savings_goals
+          WHERE id = ?
+        `,
+        id
+      );
+
+    return row ? rowToSavingsGoal(row) : null;
   }
 
   async update(
     id: string,
     data: UpdateSavingsGoalData
   ): Promise<SavingsGoal> {
-    const goals =
-      await getStoredSavingsGoals();
+    const current =
+      await this.findById(id);
 
-    const index = goals.findIndex(
-      (goal) => goal.id === id
-    );
-
-    if (index === -1) {
+    if (!current) {
       throw new Error(
         'Meta de ahorro no encontrada.'
       );
     }
 
-    const currentGoal = goals[index];
-
     const updatedGoal: SavingsGoal = {
-      ...currentGoal,
+      ...current,
       ...data,
       name:
         data.name !== undefined
           ? data.name.trim()
-          : currentGoal.name,
-      status:
-        data.status === 'cancelled'
-          ? 'cancelled'
-          : calculateStatus(
-              data.savedAmount ??
-                currentGoal.savedAmount,
-              data.targetAmount ??
-                currentGoal.targetAmount
-            ),
+          : current.name,
+      targetDate:
+        data.targetDate !== undefined
+          ? data.targetDate
+          : current.targetDate,
       updatedAt: new Date().toISOString(),
     };
 
-    goals[index] = updatedGoal;
+    if (
+      data.status === 'cancelled'
+    ) {
+      updatedGoal.status = 'cancelled';
+    } else {
+      updatedGoal.status =
+        calculateStatus(
+          updatedGoal.savedAmount,
+          updatedGoal.targetAmount
+        );
+    }
 
-    await saveStoredSavingsGoals(goals);
+    const db = await getDatabase();
+
+    await db.runAsync(
+      `
+        UPDATE savings_goals
+        SET
+          name = ?,
+          target_amount = ?,
+          saved_amount = ?,
+          target_date = ?,
+          status = ?,
+          updated_at = ?,
+          sync_status = 'pending'
+        WHERE id = ?
+      `,
+      updatedGoal.name,
+      updatedGoal.targetAmount,
+      updatedGoal.savedAmount,
+      updatedGoal.targetDate ?? null,
+      updatedGoal.status,
+      updatedGoal.updatedAt,
+      updatedGoal.id
+    );
 
     return updatedGoal;
   }
@@ -133,24 +216,21 @@ export class LocalSavingsGoalRepository
   async delete(
     id: string
   ): Promise<void> {
-    const goals =
-      await getStoredSavingsGoals();
+    const db = await getDatabase();
 
-    const filteredGoals =
-      goals.filter(
-        (goal) => goal.id !== id
+    const result =
+      await db.runAsync(
+        `
+          DELETE FROM savings_goals
+          WHERE id = ?
+        `,
+        id
       );
 
-    if (
-      filteredGoals.length === goals.length
-    ) {
+    if (result.changes === 0) {
       throw new Error(
         'Meta de ahorro no encontrada.'
       );
     }
-
-    await saveStoredSavingsGoals(
-      filteredGoals
-    );
   }
 }

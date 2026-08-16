@@ -17,6 +17,12 @@ import {
 import {
   migrateFinancialTransactionsToSQLite,
 } from '../data/local/financialMigration';
+import {
+  migrateSavingsGoalsToSQLite,
+} from '../data/local/savingsGoalMigration';
+import {
+  migratePlanningItemsToSQLite,
+} from '../data/local/planningMigration';
 
 let initialized = false;
 
@@ -37,6 +43,10 @@ export async function initializeLocalDatabase():
   await migrateShoppingListsToSQLite();
 
   await migrateFinancialTransactionsToSQLite();
+
+  await migrateSavingsGoalsToSQLite();
+
+  await migratePlanningItemsToSQLite();
 
   initialized = true;
 }
