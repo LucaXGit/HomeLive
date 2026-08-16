@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 7;
 
 export async function runMigrations():
   Promise<void> {
@@ -37,6 +37,18 @@ export async function runMigrations():
 
   if (currentVersion < 4) {
     await migrateToVersion4(db);
+  }
+
+  if (currentVersion < 5) {
+    await migrateToVersion5(db);
+  }
+
+  if (currentVersion < 6) {
+    await migrateToVersion6(db);
+  }
+
+  if (currentVersion < 7) {
+    await migrateToVersion7(db);
   }
 
   await db.execAsync(
@@ -262,4 +274,261 @@ async function migrateToVersion4(
       NOT NULL DEFAULT 'pending';
     `);
   }
+}
+
+async function migrateToVersion6(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  const itemColumns =
+    await db.getAllAsync<{
+      name: string;
+    }>(
+      'PRAGMA table_info(shopping_items)'
+    );
+
+  const itemColumnNames = new Set(
+    itemColumns.map(
+      (column) => column.name
+    )
+  );
+
+  if (
+    !itemColumnNames.has('id')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN id TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('shopping_list_id')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN shopping_list_id TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('name')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN name TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('quantity')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN quantity REAL
+      NOT NULL DEFAULT 1;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('unit')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN unit TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('status')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN status TEXT
+      NOT NULL DEFAULT 'pending';
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('created_at')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN created_at TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('updated_at')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN updated_at TEXT;
+    `);
+  }
+
+  if (
+    !itemColumnNames.has('sync_status')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN sync_status TEXT
+      NOT NULL DEFAULT 'pending';
+    `);
+  }
+}
+
+async function migrateToVersion5(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  const columns =
+    await db.getAllAsync<{
+      name: string;
+    }>(
+      'PRAGMA table_info(shopping_items)'
+    );
+
+  const hasShoppingItemColumn = (
+    columnName: string
+  ): boolean =>
+    columns.some(
+      (column) =>
+        column.name === columnName
+    );
+
+  if (
+    !hasShoppingItemColumn('quantity')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN quantity REAL
+      NOT NULL DEFAULT 1;
+    `);
+  }
+
+  if (
+    !hasShoppingItemColumn('unit')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN unit TEXT;
+    `);
+  }
+
+  if (
+    !hasShoppingItemColumn('status')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN status TEXT
+      NOT NULL DEFAULT 'pending';
+    `);
+  }
+
+  if (
+    !hasShoppingItemColumn('created_at')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN created_at TEXT;
+    `);
+  }
+
+  if (
+    !hasShoppingItemColumn('updated_at')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN updated_at TEXT;
+    `);
+  }
+
+  if (
+    !hasShoppingItemColumn('sync_status')
+  ) {
+    await db.execAsync(`
+      ALTER TABLE shopping_items
+      ADD COLUMN sync_status TEXT
+      NOT NULL DEFAULT 'pending';
+    `);
+  }
+}
+
+async function migrateToVersion7(
+  db: Awaited<
+    ReturnType<typeof getDatabase>
+  >
+): Promise<void> {
+  await db.execAsync(`
+    DROP TABLE IF EXISTS shopping_items;
+    DROP TABLE IF EXISTS shopping_lists;
+
+    CREATE TABLE shopping_lists (
+      id TEXT PRIMARY KEY NOT NULL,
+      household_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active'
+        CHECK (
+          status IN (
+            'active',
+            'completed'
+          )
+        ),
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        ),
+      FOREIGN KEY (
+        household_id
+      )
+      REFERENCES households(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE TABLE shopping_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      shopping_list_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      quantity REAL NOT NULL,
+      unit TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          status IN (
+            'pending',
+            'purchased'
+          )
+        ),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      sync_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (
+          sync_status IN (
+            'pending',
+            'synced',
+            'error'
+          )
+        ),
+      FOREIGN KEY (
+        shopping_list_id
+      )
+      REFERENCES shopping_lists(id)
+      ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_shopping_lists_household
+      ON shopping_lists(household_id);
+    CREATE INDEX IF NOT EXISTS idx_shopping_items_list
+      ON shopping_items(shopping_list_id);
+  `);
 }
