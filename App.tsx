@@ -7,6 +7,7 @@ import { AuthProvider } from './src/presentation/context/AuthContext';
 import { HouseholdProvider } from './src/presentation/context/HouseholdContext';
 import { PantryProvider } from './src/presentation/context/PantryContext';
 import { ShoppingListProvider } from './src/presentation/context/ShoppingListContext';
+import { FinanceProvider } from './src/presentation/context/FinanceContext';
 
 export default function App() {
   return (
@@ -14,9 +15,11 @@ export default function App() {
       <HouseholdProvider>
         <PantryProvider>
           <ShoppingListProvider>
-            <NavigationContainer>
-              <AppNavigator />
-            </NavigationContainer>
+            <FinanceProvider>
+              <NavigationContainer>
+                <AppNavigator />
+              </NavigationContainer>
+            </FinanceProvider>
           </ShoppingListProvider>
         </PantryProvider>
       </HouseholdProvider>

@@ -14,6 +14,7 @@ import PantryScreen from '../presentation/screens/PantryScreen';
 import CreateProductScreen from '../presentation/screens/pantry/CreateProductScreen';
 import EditProductScreen from '../presentation/screens/pantry/EditProductScreen';
 import FinancesScreen from '../presentation/screens/FinancesScreen';
+import CreateTransactionScreen from '../presentation/screens/finances/CreateTransactionScreen';
 import ShoppingScreen from '../presentation/screens/ShoppingScreen';
 import CreateShoppingListScreen from '../presentation/screens/shopping/CreateShoppingListScreen';
 import ShoppingListDetailScreen from '../presentation/screens/shopping/ShoppingListDetailScreen';
@@ -30,6 +31,7 @@ export type RootStackParamList = {
     productId: string;
   };
   Finances: undefined;
+  CreateTransaction: undefined;
   Shopping: undefined;
   CreateShoppingList: undefined;
   ShoppingListDetail: {
@@ -133,6 +135,14 @@ export default function AppNavigator() {
             component={FinancesScreen}
             options={{
               title: 'Finanzas',
+            }}
+          />
+
+          <Stack.Screen
+            name="CreateTransaction"
+            component={CreateTransactionScreen}
+            options={{
+              title: 'Nuevo movimiento',
             }}
           />
 
