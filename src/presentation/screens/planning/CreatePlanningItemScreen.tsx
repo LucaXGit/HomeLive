@@ -51,6 +51,7 @@ const types: {
 
 export default function CreatePlanningItemScreen({
   navigation,
+  route,
 }: Props) {
   const { createItem } = usePlanning();
 
@@ -58,7 +59,8 @@ export default function CreatePlanningItemScreen({
   const [description, setDescription] =
     useState('');
   const [date, setDate] = useState(
-    formatDateKey(new Date())
+    route.params?.initialDate ??
+      formatDateKey(new Date())
   );
 
   const [type, setType] =

@@ -307,7 +307,11 @@ export default function PlanningScreen({
             style={styles.addButton}
             onPress={() =>
               navigation.navigate(
-                'CreatePlanningItem'
+                'CreatePlanningItem',
+                {
+                  initialDate:
+                    selectedDate,
+                }
               )
             }
           >

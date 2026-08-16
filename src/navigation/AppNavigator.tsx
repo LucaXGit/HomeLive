@@ -52,7 +52,9 @@ export type RootStackParamList = {
     listId: string;
   };
   Planning: undefined;
-  CreatePlanningItem: undefined;
+  CreatePlanningItem: {
+    initialDate?: string;
+  };
   EditPlanningItem: {
     planningItemId: string;
   };

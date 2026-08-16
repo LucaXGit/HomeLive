@@ -1,11 +1,18 @@
 import { Product } from '../../domain/entities';
-import { getProductStatus } from '../../domain/usecases/productStatus';
 
 import {
   CreateProductData,
   ProductRepository,
   UpdateProductData,
 } from '../../domain/repositories/ProductRepository';
+
+import {
+  getProductStatus,
+} from '../../domain/usecases/productStatus';
+
+import {
+  getDatabase,
+} from '../local/database';
 
 import {
   getStoredProducts,
@@ -18,15 +25,55 @@ function generateId(): string {
     .slice(2, 10)}`;
 }
 
+interface ProductRow {
+  id: string;
+  household_id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  purchase_date: string | null;
+  expiration_date: string | null;
+  location: Product['location'];
+  status: Product['status'];
+  registered_by: string;
+  created_at: string;
+  updated_at: string;
+  sync_status: string;
+}
+
+function rowToProduct(
+  row: ProductRow
+): Product {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    category: row.category,
+    quantity: row.quantity,
+    unit: row.unit,
+    purchaseDate:
+      row.purchase_date ?? undefined,
+    expirationDate:
+      row.expiration_date ?? undefined,
+    location: row.location,
+    status: row.status,
+    registeredBy: row.registered_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export class LocalProductRepository
   implements ProductRepository
 {
   async create(
     data: CreateProductData
   ): Promise<Product> {
-    const products = await getStoredProducts();
+    const db = await getDatabase();
 
-    const now = new Date().toISOString();
+    const now =
+      new Date().toISOString();
 
     const product: Product = {
       id: generateId(),
@@ -35,22 +82,58 @@ export class LocalProductRepository
       category: data.category.trim(),
       quantity: data.quantity,
       unit: data.unit.trim(),
-      purchaseDate: data.purchaseDate,
-      expirationDate: data.expirationDate,
+      purchaseDate:
+        data.purchaseDate,
+      expirationDate:
+        data.expirationDate,
       location: data.location,
       status: getProductStatus(
         data.quantity,
         data.expirationDate
       ),
-      registeredBy: data.registeredBy,
+      registeredBy:
+        data.registeredBy,
       createdAt: now,
       updatedAt: now,
     };
 
-    await saveStoredProducts([
-      ...products,
-      product,
-    ]);
+    await db.runAsync(
+      `
+        INSERT INTO products (
+          id,
+          household_id,
+          name,
+          category,
+          quantity,
+          unit,
+          purchase_date,
+          expiration_date,
+          location,
+          status,
+          registered_by,
+          created_at,
+          updated_at,
+          sync_status
+        )
+        VALUES (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+      `,
+      product.id,
+      product.householdId,
+      product.name,
+      product.category,
+      product.quantity,
+      product.unit,
+      product.purchaseDate ?? null,
+      product.expirationDate ?? null,
+      product.location,
+      product.status,
+      product.registeredBy,
+      product.createdAt,
+      product.updatedAt,
+      'pending'
+    );
 
     return product;
   }
@@ -58,84 +141,153 @@ export class LocalProductRepository
   async findAllByHousehold(
     householdId: string
   ): Promise<Product[]> {
-    const products = await getStoredProducts();
-    let hasChanges = false;
+    const db = await getDatabase();
 
-    const updatedProducts = products.map((product) => {
-      const currentStatus = getProductStatus(
-        product.quantity,
-        product.expirationDate
+    const rows =
+      await db.getAllAsync<ProductRow>(
+        `
+          SELECT *
+          FROM products
+          WHERE household_id = ?
+          ORDER BY created_at ASC
+        `,
+        householdId
       );
 
-      if (currentStatus === product.status) {
-        return product;
+    const products =
+      rows.map(rowToProduct);
+
+    let hasStatusChanges = false;
+
+    for (const product of products) {
+      const currentStatus =
+        getProductStatus(
+          product.quantity,
+          product.expirationDate
+        );
+
+      if (
+        currentStatus !==
+        product.status
+      ) {
+        hasStatusChanges = true;
+
+        product.status =
+          currentStatus;
+
+        product.updatedAt =
+          new Date().toISOString();
+
+        await db.runAsync(
+          `
+            UPDATE products
+            SET
+              status = ?,
+              updated_at = ?,
+              sync_status = 'pending'
+            WHERE id = ?
+          `,
+          product.status,
+          product.updatedAt,
+          product.id
+        );
       }
-
-      hasChanges = true;
-
-      return {
-        ...product,
-        status: currentStatus,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    if (hasChanges) {
-      await saveStoredProducts(updatedProducts);
     }
 
-    return updatedProducts.filter(
-      (product) =>
-        product.householdId === householdId
-    );
+    if (hasStatusChanges) {
+      return products;
+    }
+
+    return products;
   }
 
   async findById(
     id: string
   ): Promise<Product | null> {
-    const products = await getStoredProducts();
+    const db = await getDatabase();
 
-    return (
-      products.find(
-        (product) => product.id === id
-      ) ?? null
-    );
+    const row =
+      await db.getFirstAsync<ProductRow>(
+        `
+          SELECT *
+          FROM products
+          WHERE id = ?
+        `,
+        id
+      );
+
+    return row
+      ? rowToProduct(row)
+      : null;
   }
 
   async update(
     id: string,
     data: UpdateProductData
   ): Promise<Product> {
-    const products = await getStoredProducts();
+    const current =
+      await this.findById(id);
 
-    const index = products.findIndex(
-      (product) => product.id === id
-    );
-
-    if (index === -1) {
+    if (!current) {
       throw new Error(
         'Producto no encontrado.'
       );
     }
 
-    const currentProduct = products[index];
-    const mergedProduct = {
-      ...currentProduct,
-      ...data,
-    };
-
     const updatedProduct: Product = {
-      ...mergedProduct,
-      status: getProductStatus(
-        mergedProduct.quantity,
-        mergedProduct.expirationDate
-      ),
-      updatedAt: new Date().toISOString(),
+      ...current,
+      ...data,
+      name:
+        data.name !== undefined
+          ? data.name.trim()
+          : current.name,
+      category:
+        data.category !== undefined
+          ? data.category.trim()
+          : current.category,
+      unit:
+        data.unit !== undefined
+          ? data.unit.trim()
+          : current.unit,
+      updatedAt:
+        new Date().toISOString(),
     };
 
-    products[index] = updatedProduct;
+    updatedProduct.status =
+      getProductStatus(
+        updatedProduct.quantity,
+        updatedProduct.expirationDate
+      );
 
-    await saveStoredProducts(products);
+    const db = await getDatabase();
+
+    await db.runAsync(
+      `
+        UPDATE products
+        SET
+          name = ?,
+          category = ?,
+          quantity = ?,
+          unit = ?,
+          purchase_date = ?,
+          expiration_date = ?,
+          location = ?,
+          status = ?,
+          updated_at = ?,
+          sync_status = 'pending'
+        WHERE id = ?
+      `,
+      updatedProduct.name,
+      updatedProduct.category,
+      updatedProduct.quantity,
+      updatedProduct.unit,
+      updatedProduct.purchaseDate ?? null,
+      updatedProduct.expirationDate ?? null,
+      updatedProduct.location,
+      updatedProduct.status,
+      updatedProduct.updatedAt,
+      updatedProduct.id
+    );
 
     return updatedProduct;
   }
@@ -143,24 +295,21 @@ export class LocalProductRepository
   async delete(
     id: string
   ): Promise<void> {
-    const products = await getStoredProducts();
+    const db = await getDatabase();
 
-    const filteredProducts =
-      products.filter(
-        (product) => product.id !== id
+    const result =
+      await db.runAsync(
+        `
+          DELETE FROM products
+          WHERE id = ?
+        `,
+        id
       );
 
-    if (
-      filteredProducts.length ===
-      products.length
-    ) {
+    if (result.changes === 0) {
       throw new Error(
         'Producto no encontrado.'
       );
     }
-
-    await saveStoredProducts(
-      filteredProducts
-    );
   }
 }
