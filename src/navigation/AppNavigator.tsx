@@ -1,5 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useHousehold } from '../presentation/context/HouseholdContext';
@@ -66,6 +72,8 @@ export default function AppNavigator() {
   const {
     user,
     loading: authLoading,
+    biometricLocked,
+    unlockWithBiometrics,
   } = useAuth();
 
   const {
@@ -83,6 +91,23 @@ export default function AppNavigator() {
         }}
       >
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (user && biometricLocked) {
+    return (
+      <View style={styles.lockedContainer}>
+        <Text style={styles.lockedTitle}>HomeLive bloqueado</Text>
+        <Text style={styles.lockedText}>
+          Confirma tu identidad para continuar.
+        </Text>
+        <Pressable
+          style={styles.unlockButton}
+          onPress={unlockWithBiometrics}
+        >
+          <Text>Desbloquear con huella</Text>
+        </Pressable>
       </View>
     );
   }
@@ -250,3 +275,27 @@ export default function AppNavigator() {
     </Stack.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  lockedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  lockedTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  lockedText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  unlockButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+  },
+});

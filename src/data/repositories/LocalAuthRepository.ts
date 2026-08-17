@@ -15,6 +15,9 @@ import {
   saveSession,
   saveStoredUsers,
 } from '../local/authStorage';
+import {
+  upsertUserInSQLite,
+} from '../local/userStorageSqlite';
 
 async function hashPassword(password: string): Promise<string> {
   return Crypto.digestStringAsync(
@@ -66,7 +69,7 @@ export class LocalAuthRepository implements AuthRepository {
     await saveStoredUsers([...users, newRecord]);
 
     const user = removePasswordHash(newRecord);
-
+    await upsertUserInSQLite(user);
     await saveSession(user);
 
     return user;
@@ -86,7 +89,7 @@ export class LocalAuthRepository implements AuthRepository {
     }
 
     const user = removePasswordHash(record);
-
+    await upsertUserInSQLite(user);
     await saveSession(user);
 
     return user;
@@ -97,6 +100,12 @@ export class LocalAuthRepository implements AuthRepository {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    return getSession();
+    const user = await getSession();
+    if (!user) {
+      return null;
+    }
+
+    await upsertUserInSQLite(user);
+    return user;
   }
 }

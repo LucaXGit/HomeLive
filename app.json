@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "HomeLive necesita reconocimiento de voz para convertir tus comandos en texto.",
+        "NSMicrophoneUsageDescription": "HomeLive necesita acceso al micrófono para escuchar comandos por voz."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,14 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.anonymous.HomeLive"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,7 +40,24 @@
     "plugins": [
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "HomeLive necesita acceso al micrófono para registrar comandos por voz."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "HomeLive necesita acceso al micrófono para escuchar comandos por voz.",
+          "speechRecognitionPermission": "HomeLive necesita reconocimiento de voz para convertir tus comandos en texto.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      "expo-asset"
     ]
   }
 }
